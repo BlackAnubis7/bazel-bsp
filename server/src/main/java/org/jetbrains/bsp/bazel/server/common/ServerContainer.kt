@@ -5,6 +5,7 @@ import org.jetbrains.bsp.bazel.bazelrunner.BazelInfoResolver
 import org.jetbrains.bsp.bazel.bazelrunner.BazelInfoStorage
 import org.jetbrains.bsp.bazel.bazelrunner.BazelRunner
 import org.jetbrains.bsp.bazel.logger.BspClientLogger
+import org.jetbrains.bsp.bazel.logger.BspClientTaskNotifier
 import org.jetbrains.bsp.bazel.server.bsp.info.BspInfo
 import org.jetbrains.bsp.bazel.server.bsp.managers.BazelBspAspectsManager
 import org.jetbrains.bsp.bazel.server.bsp.managers.BazelBspCompilationManager
@@ -23,6 +24,7 @@ import java.nio.file.Path
 class ServerContainer internal constructor(
     val projectProvider: ProjectProvider,
     val bspClientLogger: BspClientLogger,
+    val bspClientTaskNotifier: BspClientTaskNotifier,
     val bazelInfo: BazelInfo,
     val bazelRunner: BazelRunner,
     val compilationManager: BazelBspCompilationManager,
@@ -37,6 +39,7 @@ class ServerContainer internal constructor(
             projectStorage: ProjectStorage?
         ): ServerContainer {
             val bspClientLogger = BspClientLogger()
+            val bspClientTaskNotifier = BspClientTaskNotifier()
             val bazelInfoStorage = BazelInfoStorage(bspInfo)
             val bazelDataResolver =
                 BazelInfoResolver(
@@ -76,6 +79,7 @@ class ServerContainer internal constructor(
             return ServerContainer(
                 projectProvider,
                 bspClientLogger,
+                bspClientTaskNotifier,
                 bazelInfo,
                 bazelRunner,
                 compilationManager,

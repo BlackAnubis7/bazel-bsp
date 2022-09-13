@@ -14,6 +14,7 @@ import org.eclipse.lsp4j.jsonrpc.messages.ResponseError
 import org.eclipse.lsp4j.jsonrpc.messages.ResponseErrorCode
 import org.jetbrains.bsp.bazel.bazelrunner.BazelProcessResult
 import org.jetbrains.bsp.bazel.bazelrunner.BazelRunner
+import org.jetbrains.bsp.bazel.logger.BspClientTaskNotifier
 import org.jetbrains.bsp.bazel.server.bsp.managers.BazelBspCompilationManager
 import org.jetbrains.bsp.bazel.server.sync.BspMappings.toBspId
 import org.jetbrains.bsp.bazel.server.sync.model.Module
@@ -25,7 +26,8 @@ class ExecuteService(
     private val compilationManager: BazelBspCompilationManager,
     private val projectProvider: ProjectProvider,
     private val bazelRunner: BazelRunner,
-    private val workspaceContextProvider: WorkspaceContextProvider
+    private val workspaceContextProvider: WorkspaceContextProvider,
+    private val bspClientTaskNotifier: BspClientTaskNotifier
 ) {
     fun compile(params: CompileParams): CompileResult {
         val targets = selectTargets(params.targets)
@@ -43,6 +45,7 @@ class ExecuteService(
         result = bazelRunner.commandBuilder().test().withTargets(
             targetsSpec
         ).withArguments(params.arguments).withFlags(listOf("--test_output=all", "--remote_print_execution_messages=all")).executeBazelBesCommand(params.originId).waitAndGetResult()
+        JUnitTestParser(bspClientTaskNotifier).processTestOutputWithJUnit(result)
         return TestResult(result.statusCode).apply {
             originId = originId
             data = result
