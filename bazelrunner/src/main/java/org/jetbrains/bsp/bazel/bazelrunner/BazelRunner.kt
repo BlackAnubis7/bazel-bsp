@@ -54,7 +54,11 @@ class BazelRunner private constructor(
         val processBuilder = ProcessBuilder(processArgs)
         workspaceRoot?.let { processBuilder.directory(it.toFile()) }
         val process = processBuilder.start()
-        return BazelProcess(process, bspClientLogger, originId)
+        return BazelProcess(
+            process,
+            if (originId == null) bspClientLogger else bspClientLogger.withOriginId(originId),
+            originId
+        )
     }
 
     private fun logInvocation(processArgs: List<String>, originId: String?) {

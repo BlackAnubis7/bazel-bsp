@@ -1,131 +1,130 @@
 package org.jetbrains.bsp.bazel.server.sync
 // TODO - rethink the location
 
+import ch.epfl.scala.bsp4j.BuildTargetIdentifier
 import ch.epfl.scala.bsp4j.TaskId
+import ch.epfl.scala.bsp4j.TestReport
 import ch.epfl.scala.bsp4j.TestStatus
 import org.jetbrains.bsp.bazel.bazelrunner.BazelProcessResult
 import org.jetbrains.bsp.bazel.logger.BspClientTaskNotifier
 import java.util.*
 import java.util.regex.Pattern
 
-private data class TestSuiteData(
-  val displayName: String,
+private data class TestOutputLine(
+  val name: String,
+  val passed: Boolean,
+  val message: String,
+  val indent: Int,
+  val taskId: TaskId?
+)
+
+private data class StartedTestingTarget(
+  val uri: String,
   val taskId: TaskId
 )
 
-// TODO - redo everything
 class JUnitTestParser(
   private val bspClientTaskNotifier: BspClientTaskNotifier
 ) {
   fun processTestOutputWithJUnit(testResult: BazelProcessResult) {
-
-    var startedSuite: TestSuiteData? = null
-    var startedClass: TestSuiteData? = null
-
-//    notifyProcess(ServiceMessageBuilder("enteredTheMatrix").toString())
+    val startedSuites: Stack<TestOutputLine> = Stack()
+    var currentTestTarget: StartedTestingTarget? = null
+    var previousOutputLine: TestOutputLine? = null
 
     testResult.stdoutLines.forEach {
-      val firstLetterPattern = Pattern.compile("\\p{L}")
-
-      val matcherSuite = Pattern.compile("^(?!.*(Junit|Jupiter)).*✔\$").matcher(it).find()
-      val matcherSuccessTest = Pattern.compile("\\(\\)\\s✔\$").matcher(it).find()
-      val matcherFailTest = Pattern.compile("\\(\\)\\s✘.*").matcher(it).find()
-
-      val testName = it
-        .trim()
-        .substringAfter("─")
-        .substringBefore('✔')
-        .substringBefore('✘')
-      if (matcherSuite  && !matcherSuccessTest && !matcherFailTest) {
-        val firstLetterMatcher = firstLetterPattern.matcher(it)
-        if (firstLetterMatcher.find()) {
-//          executeCommand("testSuiteFinished","name" to startedSuite)
-          if (startedSuite != null) bspClientTaskNotifier.finishTest(
-            true,
-            startedSuite!!.displayName,
-            startedSuite!!.taskId,
-            TestStatus.PASSED,
+      if (currentTestTarget == null) {
+        val testingStartMatcher = testingStartPattern.matcher(it)
+        if (testingStartMatcher.find()) {
+          currentTestTarget = StartedTestingTarget(testingStartMatcher.group("target"), TaskId(testUUID()))
+          beginTesting(currentTestTarget!!)
+        }
+      } else {
+        val currentLineMatcher = testLinePattern.matcher(it)
+        val testFinished = testFinishedPattern.matcher(it)
+        val currentOutputLine = if (currentLineMatcher.find()) {
+          TestOutputLine(
+            currentLineMatcher.group("name"),
+            currentLineMatcher.group("result") == "✔",
+            currentLineMatcher.group("message"),
+            currentLineMatcher.start("name"),
             null
           )
-          startedSuite = null
-//          val uuid = testUUID()
-          val newTaskId = TaskId(testUUID())
-
-          when(firstLetterMatcher.start()) {
-            6 -> { // new test class
-//              executeCommand("testSuiteFinished","name" to startedClass)
-//              executeCommand("testSuiteStarted","name" to result)
-              if (startedClass != null) bspClientTaskNotifier.finishTest(
-                true,
-                startedClass!!.displayName,
-                startedClass!!.taskId,
-                TestStatus.PASSED,
-                null
-              )
-              bspClientTaskNotifier.startTest(true, testName, newTaskId)
-              startedClass = TestSuiteData(testName, newTaskId)
-            }
-            else -> { // new test suite (e.g. some inner class)
-//              executeCommand("testSuiteStarted","name" to result)
-              newTaskId.parents = generateParentList(startedClass)
-              bspClientTaskNotifier.startTest(true, testName, newTaskId)
-              startedSuite = TestSuiteData(testName, newTaskId)
+        } else {
+          null
+        }
+        if (currentOutputLine != null) {
+          if (previousOutputLine != null) {
+            if (currentOutputLine.indent > previousOutputLine!!.indent) {
+              startSuite(startedSuites, previousOutputLine!!)
+            } else {
+              startAndEndTest(startedSuites, previousOutputLine!!)
+              while (startedSuites.isNotEmpty() && startedSuites.peek().indent >= currentOutputLine.indent) {
+                endTopmostSuite(startedSuites)
+              }
             }
           }
-        }
-      } else if (matcherSuccessTest || matcherFailTest) {
-        val uuid = testUUID()
-        val taskId = TaskId(uuid)
-        taskId.parents = generateParentList(startedClass, startedSuite)
-        bspClientTaskNotifier.startTest(false, testName, taskId)
-        if (matcherSuccessTest) {
-          bspClientTaskNotifier.finishTest(false, testName, taskId, TestStatus.PASSED, null)
-//        executeCommand("testStarted", "name" to result)
-//        executeCommand("testFinished", "name" to result)
-        }
-        else {
-          bspClientTaskNotifier.finishTest(
-            false,
-            testName,
-            taskId,
-            TestStatus.FAILED,
-            it.substringAfter('✘')
-          )
-//        executeCommand("testStarted", "name" to result)
-//        executeCommand("testFailed",
-//          "name" to result,
-//          "error" to "true",
-//          "message" to it.substringAfter('✘'))
+          previousOutputLine = currentOutputLine
+        } else if (testFinished.find()) {
+          startAndEndTest(startedSuites, previousOutputLine!!)
+          while (startedSuites.isNotEmpty()) {
+            endTopmostSuite(startedSuites)
+          }
+          val time = testFinished.group("time").toLongOrNull() ?: 0
+          finishTesting(currentTestTarget!!, time)
+          currentTestTarget = null
         }
       }
     }
-
-//    executeCommand("testSuiteFinished","name" to startedSuite)
-//    executeCommand("testSuiteFinished","name" to startedClass)
-    if (startedSuite != null) bspClientTaskNotifier.finishTest(
-      true,
-      startedSuite!!.displayName,
-      startedSuite!!.taskId,
-      TestStatus.PASSED,
-      null
-    )
-    if (startedClass != null) bspClientTaskNotifier.finishTest(
-      true,
-      startedClass!!.displayName,
-      startedClass!!.taskId,
-      TestStatus.PASSED,
-      null
-    )
-
-//    notifyProcess("Finish\n")
-//    processHandler.destroyProcess()
   }
 
-  private fun generateParentList(vararg parents: TestSuiteData?): List<String> =
-    generateParentList(parents.toList())
+  private fun beginTesting(testTarget: StartedTestingTarget) {
+    bspClientTaskNotifier.beginTestTarget(BuildTargetIdentifier(testTarget.uri), testTarget.taskId)
+  }
 
-  private fun generateParentList(parents: List<TestSuiteData?>): List<String> =
-    parents.filterNotNull().map { it.taskId.id }
+  private fun finishTesting(testTarget: StartedTestingTarget, millis: Long) {
+    val report = TestReport(BuildTargetIdentifier(testTarget.uri), 0, 0, 0, 0, 0)
+    report.time = millis
+    bspClientTaskNotifier.endTestTarget(report, testTarget.taskId)
+  }
+
+  private fun startSuite(startedSuites: Stack<TestOutputLine>, suite: TestOutputLine) {
+    val newTaskId = TaskId(testUUID())
+    newTaskId.parents = generateParentList(startedSuites)
+    val updatedSuite = suite.copy(taskId = newTaskId)
+    bspClientTaskNotifier.startTest(true, updatedSuite.name, newTaskId)
+    startedSuites.push(updatedSuite)
+  }
+
+  private fun endTopmostSuite(startedSuites: Stack<TestOutputLine>) {
+    val finishingSuite = startedSuites.pop()
+    bspClientTaskNotifier.finishTestSuite(
+      finishingSuite!!.name,
+      finishingSuite.taskId
+    )
+  }
+
+  private fun startAndEndTest(startedSuites: Stack<TestOutputLine>, test: TestOutputLine) {
+    val newTaskId = TaskId(testUUID())
+    newTaskId.parents = generateParentList(startedSuites)
+    bspClientTaskNotifier.startTest(false, test.name, newTaskId)
+    bspClientTaskNotifier.finishTest(
+      false,
+      test.name,
+      newTaskId,
+      if (test.passed) TestStatus.PASSED else TestStatus.FAILED,
+      test.message
+    )
+  }
+
+  private fun generateParentList(parents: Stack<TestOutputLine>): List<String> =
+    parents.toList().mapNotNull { it.taskId?.id }
 
   private fun testUUID(): String = "test-" + UUID.randomUUID().toString()
+
+  companion object {
+    private val testingStartPattern = Pattern.compile("^=+\\hTest\\houtput\\hfor\\h(?<target>[^:]*:[^:]+):")
+    private val testLinePattern =
+      Pattern.compile("^(?:[\\h└├│]{3})+[└├│]─\\h(?<name>.+)\\h(?<result>[✔✘])\\h?(?<message>.*)\$")
+    private val testFinishedPattern = Pattern.compile("^Test\\hrun\\hfinished\\hafter\\h(?<time>\\d+)\\hms")
+  }
 }

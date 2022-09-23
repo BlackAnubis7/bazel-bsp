@@ -42,9 +42,12 @@ class ExecuteService(
             return TestResult(result.statusCode)
         }
         val targetsSpec = TargetsSpec(targets, emptyList())
-        result = bazelRunner.commandBuilder().test().withTargets(
-            targetsSpec
-        ).withArguments(params.arguments).withFlags(listOf("--test_output=all", "--remote_print_execution_messages=all")).executeBazelBesCommand(params.originId).waitAndGetResult()
+        result = bazelRunner.commandBuilder().test()
+            .withTargets(targetsSpec)
+            .withArguments(params.arguments)
+            .withFlags(listOf("--test_output=all", "--remote_print_execution_messages=all"))
+            .executeBazelBesCommand(params.originId)
+            .waitAndGetResult(true)
         JUnitTestParser(bspClientTaskNotifier).processTestOutputWithJUnit(result)
         return TestResult(result.statusCode).apply {
             originId = originId
