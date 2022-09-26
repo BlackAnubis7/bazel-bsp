@@ -48,8 +48,8 @@ class BazelRunner private constructor(
     ): BazelProcess {
         val workspaceContext = workspaceContextProvider.currentWorkspaceContext()
 
-        val flags = if (originId != null) flags + "--define=ORIGINID=$originId" else flags
-        val processArgs = listOf(bazel(workspaceContext), command) + buildFlags(workspaceContext) + flags + arguments
+        val flagsWithOrigin = if (originId != null) flags + "--define=ORIGINID=$originId" else flags
+        val processArgs = listOf(bazel(workspaceContext), command) + buildFlags(workspaceContext) + flagsWithOrigin + arguments
         logInvocation(processArgs, originId)
         val processBuilder = ProcessBuilder(processArgs)
         workspaceRoot?.let { processBuilder.directory(it.toFile()) }
