@@ -5,7 +5,7 @@ import org.jetbrains.bsp.bazel.bazelrunner.BazelInfoResolver
 import org.jetbrains.bsp.bazel.bazelrunner.BazelInfoStorage
 import org.jetbrains.bsp.bazel.bazelrunner.BazelRunner
 import org.jetbrains.bsp.bazel.logger.BspClientLogger
-import org.jetbrains.bsp.bazel.logger.BspClientTaskNotifier
+import org.jetbrains.bsp.bazel.logger.BspClientTestNotifier
 import org.jetbrains.bsp.bazel.server.bsp.info.BspInfo
 import org.jetbrains.bsp.bazel.server.bsp.managers.BazelBspAspectsManager
 import org.jetbrains.bsp.bazel.server.bsp.managers.BazelBspCompilationManager
@@ -22,13 +22,13 @@ import org.jetbrains.bsp.bazel.workspacecontext.WorkspaceContextProvider
 import java.nio.file.Path
 
 class ServerContainer internal constructor(
-    val projectProvider: ProjectProvider,
-    val bspClientLogger: BspClientLogger,
-    val bspClientTaskNotifier: BspClientTaskNotifier,
-    val bazelInfo: BazelInfo,
-    val bazelRunner: BazelRunner,
-    val compilationManager: BazelBspCompilationManager,
-    val languagePluginsService: LanguagePluginsService
+  val projectProvider: ProjectProvider,
+  val bspClientLogger: BspClientLogger,
+  val bspClientTestNotifier: BspClientTestNotifier,
+  val bazelInfo: BazelInfo,
+  val bazelRunner: BazelRunner,
+  val compilationManager: BazelBspCompilationManager,
+  val languagePluginsService: LanguagePluginsService
 ) {
     companion object {
         @JvmStatic
@@ -39,7 +39,7 @@ class ServerContainer internal constructor(
             projectStorage: ProjectStorage?
         ): ServerContainer {
             val bspClientLogger = BspClientLogger()
-            val bspClientTaskNotifier = BspClientTaskNotifier()
+            val bspClientTestNotifier = BspClientTestNotifier()
             val bazelInfoStorage = BazelInfoStorage(bspInfo)
             val bazelDataResolver =
                 BazelInfoResolver(
@@ -79,7 +79,7 @@ class ServerContainer internal constructor(
             return ServerContainer(
                 projectProvider,
                 bspClientLogger,
-                bspClientTaskNotifier,
+                bspClientTestNotifier,
                 bazelInfo,
                 bazelRunner,
                 compilationManager,

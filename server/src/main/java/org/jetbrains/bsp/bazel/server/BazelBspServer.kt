@@ -6,7 +6,7 @@ import org.eclipse.lsp4j.jsonrpc.Launcher
 import org.jetbrains.bsp.bazel.bazelrunner.BazelInfo
 import org.jetbrains.bsp.bazel.bazelrunner.BazelRunner
 import org.jetbrains.bsp.bazel.logger.BspClientLogger
-import org.jetbrains.bsp.bazel.logger.BspClientTaskNotifier
+import org.jetbrains.bsp.bazel.logger.BspClientTestNotifier
 import org.jetbrains.bsp.bazel.server.bep.BepServer
 import org.jetbrains.bsp.bazel.server.bsp.BazelBspServerLifetime
 import org.jetbrains.bsp.bazel.server.bsp.BspIntegrationData
@@ -30,13 +30,13 @@ class BazelBspServer(
     private val bspServerApi: BspServerApi
     private val compilationManager: BazelBspCompilationManager
     private val bspClientLogger: BspClientLogger
-    private val bspClientTaskNotifier: BspClientTaskNotifier
+    private val bspClientTestNotifier: BspClientTestNotifier
 
     init {
         val serverContainer =
             ServerContainer.create(bspInfo, workspaceContextProvider, workspaceRoot, null)
         bspClientLogger = serverContainer.bspClientLogger
-        bspClientTaskNotifier = serverContainer.bspClientTaskNotifier
+        bspClientTestNotifier = serverContainer.bspClientTestNotifier
         bazelInfo = serverContainer.bazelInfo
         compilationManager = serverContainer.compilationManager
         bazelRunner = serverContainer.bazelRunner
@@ -50,7 +50,7 @@ class BazelBspServer(
             serverContainer.projectProvider,
             bazelRunner,
             workspaceContextProvider,
-            bspClientTaskNotifier
+            bspClientTestNotifier
         )
         val serverLifetime = BazelBspServerLifetime()
         val bspRequestsRunner = BspRequestsRunner(serverLifetime)
@@ -69,7 +69,7 @@ class BazelBspServer(
         bspIntegrationData.launcher = launcher
         val client = launcher.remoteProxy
         bspClientLogger.initialize(client)
-        bspClientTaskNotifier.initialize(client)
+        bspClientTestNotifier.initialize(client)
         val bepServer = BepServer(client, DiagnosticsService(bazelInfo))
         compilationManager.setBepServer(bepServer)
         bspIntegrationData.server = ServerBuilder.forPort(0).addService(bepServer).build()

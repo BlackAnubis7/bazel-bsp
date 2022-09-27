@@ -6,7 +6,7 @@ import ch.epfl.scala.bsp4j.TaskId
 import ch.epfl.scala.bsp4j.TestReport
 import ch.epfl.scala.bsp4j.TestStatus
 import org.jetbrains.bsp.bazel.bazelrunner.BazelProcessResult
-import org.jetbrains.bsp.bazel.logger.BspClientTaskNotifier
+import org.jetbrains.bsp.bazel.logger.BspClientTestNotifier
 import java.util.*
 import java.util.regex.Pattern
 
@@ -24,7 +24,7 @@ private data class StartedTestingTarget(
 )
 
 class JUnitTestParser(
-  private val bspClientTaskNotifier: BspClientTaskNotifier
+  private val bspClientTestNotifier: BspClientTestNotifier
 ) {
   fun processTestOutputWithJUnit(testResult: BazelProcessResult) {
     val startedSuites: Stack<TestOutputLine> = Stack()
@@ -79,26 +79,26 @@ class JUnitTestParser(
 
 
   private fun beginTesting(testTarget: StartedTestingTarget) {
-    bspClientTaskNotifier.beginTestTarget(BuildTargetIdentifier(testTarget.uri), testTarget.taskId)
+    bspClientTestNotifier.beginTestTarget(BuildTargetIdentifier(testTarget.uri), testTarget.taskId)
   }
 
   private fun endTesting(testTarget: StartedTestingTarget, millis: Long) {
     val report = TestReport(BuildTargetIdentifier(testTarget.uri), 0, 0, 0, 0, 0)
     report.time = millis
-    bspClientTaskNotifier.endTestTarget(report, testTarget.taskId)
+    bspClientTestNotifier.endTestTarget(report, testTarget.taskId)
   }
 
   private fun startSuite(startedSuites: Stack<TestOutputLine>, suite: TestOutputLine) {
     val newTaskId = TaskId(testUUID())
     newTaskId.parents = generateParentList(startedSuites)
     val updatedSuite = suite.copy(taskId = newTaskId)
-    bspClientTaskNotifier.startTest(true, updatedSuite.name, newTaskId)
+    bspClientTestNotifier.startTest(true, updatedSuite.name, newTaskId)
     startedSuites.push(updatedSuite)
   }
 
   private fun finishTopmostSuite(startedSuites: Stack<TestOutputLine>) {
     val finishingSuite = startedSuites.pop()
-    bspClientTaskNotifier.finishTestSuite(
+    bspClientTestNotifier.finishTestSuite(
       finishingSuite!!.name,
       finishingSuite.taskId
     )
@@ -107,8 +107,8 @@ class JUnitTestParser(
   private fun startAndFinishTest(startedSuites: Stack<TestOutputLine>, test: TestOutputLine) {
     val newTaskId = TaskId(testUUID())
     newTaskId.parents = generateParentList(startedSuites)
-    bspClientTaskNotifier.startTest(false, test.name, newTaskId)
-    bspClientTaskNotifier.finishTest(
+    bspClientTestNotifier.startTest(false, test.name, newTaskId)
+    bspClientTestNotifier.finishTest(
       false,
       test.name,
       newTaskId,
