@@ -8,6 +8,7 @@ import ch.epfl.scala.bsp4j.TestStatus
 import org.jetbrains.bsp.bazel.bazelrunner.BazelProcessResult
 import org.jetbrains.bsp.bazel.logger.BspClientTestNotifier
 import java.util.*
+import java.util.regex.Matcher
 import java.util.regex.Pattern
 
 private data class TestOutputLine(
@@ -33,53 +34,73 @@ class JUnitTestParser(
 
     testResult.stdoutLines.forEach {
       if (currentTestTarget == null) {
-        val testingStartMatcher = testingStartPattern.matcher(it)
-        if (testingStartMatcher.find()) {
-          currentTestTarget = StartedTestingTarget(testingStartMatcher.group("target"), TaskId(testUUID()))
-          beginTesting(currentTestTarget!!)
-        }
+        currentTestTarget = beginTesting(it)
       } else {
         val currentLineMatcher = testLinePattern.matcher(it)
-        val testFinished = testFinishedPattern.matcher(it)
-        val currentOutputLine = if (currentLineMatcher.find()) {
-          TestOutputLine(
-            currentLineMatcher.group("name"),
-            currentLineMatcher.group("result") == "✔",
-            currentLineMatcher.group("message"),
-            currentLineMatcher.start("name"),
-            null
-          )
-        } else {
-          null
-        }
+        val testingEndedMatcher = testingEndedPattern.matcher(it)
+        val currentOutputLine = getCurrentOutputLine(currentLineMatcher)
         if (currentOutputLine != null) {
-          if (previousOutputLine != null) {
-            if (currentOutputLine.indent > previousOutputLine!!.indent) {
-              startSuite(startedSuites, previousOutputLine!!)
-            } else {
-              startAndFinishTest(startedSuites, previousOutputLine!!)
-              while (startedSuites.isNotEmpty() && startedSuites.peek().indent >= currentOutputLine.indent) {
-                finishTopmostSuite(startedSuites)
-              }
-            }
-          }
+          processPreviousOutputLine(previousOutputLine, currentOutputLine, startedSuites)
           previousOutputLine = currentOutputLine
-        } else if (testFinished.find()) {
-          startAndFinishTest(startedSuites, previousOutputLine!!)
-          while (startedSuites.isNotEmpty()) {
-            finishTopmostSuite(startedSuites)
-          }
-          val time = testFinished.group("time").toLongOrNull() ?: 0
-          endTesting(currentTestTarget!!, time)
+        } else if (testingEndedMatcher.find()) {
+          processTestingEndingLine(startedSuites, previousOutputLine, testingEndedMatcher, currentTestTarget)
           currentTestTarget = null
         }
       }
     }
   }
 
+  private fun processTestingEndingLine(
+    startedSuites: Stack<TestOutputLine>,
+    previousOutputLine: TestOutputLine?,
+    testingEndedMatcher: Matcher,
+    currentTestTarget: StartedTestingTarget?
+  ) {
+    startAndFinishTest(startedSuites, previousOutputLine!!)
+    while (startedSuites.isNotEmpty()) {
+      finishTopmostSuite(startedSuites)
+    }
+    val time = testingEndedMatcher.group("time").toLongOrNull() ?: 0
+    endTesting(currentTestTarget!!, time)
+  }
 
-  private fun beginTesting(testTarget: StartedTestingTarget) {
-    bspClientTestNotifier.beginTestTarget(BuildTargetIdentifier(testTarget.uri), testTarget.taskId)
+  private fun processPreviousOutputLine(
+    previousOutputLine: TestOutputLine?,
+    currentOutputLine: TestOutputLine,
+    startedSuites: Stack<TestOutputLine>
+  ) {
+    if (previousOutputLine != null) {
+      if (currentOutputLine.indent > previousOutputLine.indent) {
+        startSuite(startedSuites, previousOutputLine)
+      } else {
+        startAndFinishTest(startedSuites, previousOutputLine)
+        while (startedSuites.isNotEmpty() && startedSuites.peek().indent >= currentOutputLine.indent) {
+          finishTopmostSuite(startedSuites)
+        }
+      }
+    }
+  }
+
+  private fun getCurrentOutputLine(currentLineMatcher: Matcher) = if (currentLineMatcher.find()) {
+    TestOutputLine(
+      currentLineMatcher.group("name"),
+      currentLineMatcher.group("result") == "✔",
+      currentLineMatcher.group("message"),
+      currentLineMatcher.start("name"),
+      null
+    )
+  } else {
+    null
+  }
+
+  private fun beginTesting(line: String): StartedTestingTarget? {
+    val testingStartMatcher = testingStartPattern.matcher(line)
+    if (testingStartMatcher.find()) {
+      val currentTestTarget = StartedTestingTarget(testingStartMatcher.group("target"), TaskId(testUUID()))
+      bspClientTestNotifier.beginTestTarget(BuildTargetIdentifier(currentTestTarget.uri), currentTestTarget.taskId)
+      return currentTestTarget
+    }
+    return null
   }
 
   private fun endTesting(testTarget: StartedTestingTarget, millis: Long) {
@@ -126,6 +147,6 @@ class JUnitTestParser(
     private val testingStartPattern = Pattern.compile("^=+\\hTest\\houtput\\hfor\\h(?<target>[^:]*:[^:]+):")
     private val testLinePattern =
       Pattern.compile("^(?:[\\h└├│]{3})+[└├│]─\\h(?<name>.+)\\h(?<result>[✔✘])\\h?(?<message>.*)\$")
-    private val testFinishedPattern = Pattern.compile("^Test\\hrun\\hfinished\\hafter\\h(?<time>\\d+)\\hms")
+    private val testingEndedPattern = Pattern.compile("^Test\\hrun\\hfinished\\hafter\\h(?<time>\\d+)\\hms")
   }
 }
