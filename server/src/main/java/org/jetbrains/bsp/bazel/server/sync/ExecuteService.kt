@@ -45,7 +45,7 @@ class ExecuteService(
         result = bazelRunner.commandBuilder().test()
             .withTargets(targetsSpec)
             .withArguments(params.arguments)
-            .withFlags(listOf("--test_output=all", "--remote_print_execution_messages=all"))
+            .withFlags(listOf("--test_output=all"))
             .executeBazelBesCommand(params.originId)
             .waitAndGetResult(true)
         JUnitTestParser(bspClientTestNotifier).processTestOutputWithJUnit(result)
