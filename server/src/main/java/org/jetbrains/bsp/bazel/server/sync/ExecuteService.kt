@@ -5,6 +5,11 @@ import ch.epfl.scala.bsp4j.CleanCacheParams
 import ch.epfl.scala.bsp4j.CleanCacheResult
 import ch.epfl.scala.bsp4j.CompileParams
 import ch.epfl.scala.bsp4j.CompileResult
+import ch.epfl.scala.bsp4j.OutputPathItem
+import ch.epfl.scala.bsp4j.OutputPathItemKind
+import ch.epfl.scala.bsp4j.OutputPathsItem
+import ch.epfl.scala.bsp4j.OutputPathsParams
+import ch.epfl.scala.bsp4j.OutputPathsResult
 import ch.epfl.scala.bsp4j.RunParams
 import ch.epfl.scala.bsp4j.RunResult
 import ch.epfl.scala.bsp4j.TestParams
@@ -82,6 +87,27 @@ class ExecuteService(
         val bazelResult =
             bazelRunner.commandBuilder().clean().executeBazelBesCommand().waitAndGetResult()
         return CleanCacheResult(bazelResult.stdout, true)
+    }
+
+    fun outputPaths(params: OutputPathsParams): OutputPathsResult {
+        val targets = params.targets
+        val outputPaths = targets.map { outputPathForTarget(it) }
+        return OutputPathsResult(outputPaths.filterNotNull())
+    }
+
+    private fun outputPathForTarget(target: BuildTargetIdentifier): OutputPathsItem? {
+        val bazelResult = bazelRunner.commandBuilder().cquery()
+            .withArgument("\"${target.uri}\"")
+            .withFlag(BazelFlag.outputFiles())
+            .executeBazelBesCommand()
+            .waitAndGetResult()
+        return if (!bazelResult.isNotSuccess) {
+            val uris = bazelResult.stdout.split("\n\r?".toRegex()).filter { it.isNotBlank() }
+            val outputPaths = uris.map { uri ->
+                OutputPathItem(uri, OutputPathItemKind.FILE)
+            }
+            OutputPathsItem(target, outputPaths)
+        } else null
     }
 
     private fun build(bspIds: List<BuildTargetIdentifier>, originId: String?): BazelProcessResult {

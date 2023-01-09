@@ -22,6 +22,9 @@ object BazelFlag {
   @JvmStatic fun testOutputAll(): String =
     arg("test_output", "all")
 
+  @JvmStatic fun outputFiles(): String =
+    arg("output", "files")
+
   private fun arg(name: String, value: String) =
       String.format("--%s=%s", name, value)
 
