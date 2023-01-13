@@ -35,4 +35,6 @@ object BspMappings {
 
     fun toLabels(targets: List<BuildTargetIdentifier>): Set<Label> =
         targets.map(BuildTargetIdentifier::getUri).map(::Label).toSet()
+
+    fun toLabel(target: BuildTargetIdentifier): Label = Label(target.uri)
 }

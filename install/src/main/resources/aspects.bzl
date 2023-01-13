@@ -163,6 +163,19 @@ def extract_compile_jars(provider):
 
     return compilation_info.compilation_classpath if compilation_info else provider.transitive_compile_time_jars
 
+def extract_java_outputs(target):
+    provider = get_java_provider(target)
+    if not provider:
+        return None
+
+    if hasattr(provider, "java_outputs") and provider.java_outputs:
+        java_outputs = provider.java_outputs
+        jars, resolve_files_jars = map_with_resolve_files(to_jvm_outputs, java_outputs)
+        file_paths = map(file_location, resolve_files_jars)
+        return file_paths
+    else:
+        return None
+
 def extract_java_info(target, ctx, output_groups):
     provider = get_java_provider(target)
     if not provider:
@@ -469,6 +482,7 @@ def _bsp_target_info_aspect_impl(target, ctx):
     scala_target_info = extract_scala_info(target, ctx, output_groups)
     java_toolchain_info, java_toolchain_info_exported = extract_java_toolchain(target, ctx, dep_targets)
     java_runtime_info, java_runtime_info_exported = extract_java_runtime(target, ctx, dep_targets)
+    java_outputs = extract_java_outputs(target)
     cpp_target_info = extract_cpp_target_info(target, ctx)
 
     result = dict(
@@ -478,6 +492,7 @@ def _bsp_target_info_aspect_impl(target, ctx):
         dependencies = list(all_deps),
         sources = sources,
         resources = resources,
+        java_outputs = java_outputs,
         scala_target_info = scala_target_info,
         scala_toolchain_info = scala_toolchain_info,
         java_target_info = java_target_info,

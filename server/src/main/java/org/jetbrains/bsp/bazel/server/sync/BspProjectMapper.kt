@@ -22,6 +22,11 @@ import ch.epfl.scala.bsp4j.JvmRunEnvironmentParams
 import ch.epfl.scala.bsp4j.JvmRunEnvironmentResult
 import ch.epfl.scala.bsp4j.JvmTestEnvironmentParams
 import ch.epfl.scala.bsp4j.JvmTestEnvironmentResult
+import ch.epfl.scala.bsp4j.OutputPathItem
+import ch.epfl.scala.bsp4j.OutputPathItemKind
+import ch.epfl.scala.bsp4j.OutputPathsItem
+import ch.epfl.scala.bsp4j.OutputPathsParams
+import ch.epfl.scala.bsp4j.OutputPathsResult
 import ch.epfl.scala.bsp4j.ResourcesItem
 import ch.epfl.scala.bsp4j.ResourcesParams
 import ch.epfl.scala.bsp4j.ResourcesResult
@@ -158,6 +163,28 @@ class BspProjectMapper(
 
     private fun emptyResourcesItem(label: Label): ResourcesItem {
         return ResourcesItem(BspMappings.toBspId(label), emptyList())
+    }
+
+    fun outputPaths(project: Project, outputPathsParams: OutputPathsParams): OutputPathsResult =
+        outputPathsParams.targets.map { target ->
+            val label = BspMappings.toLabel(target)
+            toOutputPathsItem(project, target, label)
+        }.let { OutputPathsResult(it) }
+
+    private fun toOutputPathsItem(
+        project: Project,
+        target: BuildTargetIdentifier,
+        label: Label
+    ): OutputPathsItem {
+        val TEMPMOCK = listOf<String>("ABC", "DEF")
+        val uris = project.findModule(label)?.outputs?.map(BspMappings::toBspUri) ?: TEMPMOCK // TODO - TEMPORARY
+//        val uris = project.findModule(label)?.outputs?.map(BspMappings::toBspUri) ?: emptyList()
+        val outputPaths = uris.map { uri ->
+            OutputPathItem(uri, OutputPathItemKind.FILE)
+        }
+        val CONTROL = OutputPathItem(project.findModule(label)?.toString(), OutputPathItemKind.DIRECTORY)
+//        return OutputPathsItem(target, listOf(CONTROL))
+        return OutputPathsItem(target, outputPaths)
     }
 
     fun inverseSources(
