@@ -106,6 +106,7 @@ class IntelliJProjectTreeViewFix(private val bazelPathsResolver: BazelPathsResol
             SourceSet(emptySet(), emptySet()),
             resources,
             emptySet(),
+            emptySet(),
             null,
             hashMapOf()
         )

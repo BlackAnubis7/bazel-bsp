@@ -1,5 +1,7 @@
 package org.jetbrains.bsp.bazel.server.sync;
 
+import java.util.Collections;
+
 import ch.epfl.scala.bsp4j.CppOptionsParams;
 import ch.epfl.scala.bsp4j.CppOptionsResult;
 import ch.epfl.scala.bsp4j.DependencyModulesParams;
@@ -15,6 +17,8 @@ import ch.epfl.scala.bsp4j.JvmRunEnvironmentParams;
 import ch.epfl.scala.bsp4j.JvmRunEnvironmentResult;
 import ch.epfl.scala.bsp4j.JvmTestEnvironmentParams;
 import ch.epfl.scala.bsp4j.JvmTestEnvironmentResult;
+import ch.epfl.scala.bsp4j.OutputPathsParams;
+import ch.epfl.scala.bsp4j.OutputPathsResult;
 import ch.epfl.scala.bsp4j.ResourcesParams;
 import ch.epfl.scala.bsp4j.ResourcesResult;
 import ch.epfl.scala.bsp4j.ScalaMainClassesParams;
@@ -26,7 +30,6 @@ import ch.epfl.scala.bsp4j.ScalacOptionsResult;
 import ch.epfl.scala.bsp4j.SourcesParams;
 import ch.epfl.scala.bsp4j.SourcesResult;
 import ch.epfl.scala.bsp4j.WorkspaceBuildTargetsResult;
-import java.util.Collections;
 import org.jetbrains.bsp.bazel.server.sync.model.Language;
 
 /** A facade for all project sync related methods */
@@ -64,6 +67,11 @@ public class ProjectSyncService {
   public ResourcesResult buildTargetResources(ResourcesParams resourcesParams) {
     var project = projectProvider.get();
     return bspMapper.resources(project, resourcesParams);
+  }
+
+  public OutputPathsResult buildTargetOutputPaths(OutputPathsParams outputPathsParams) {
+    var project = projectProvider.get();
+    return bspMapper.outputPaths(project, outputPathsParams);
   }
 
   public InverseSourcesResult buildTargetInverseSources(InverseSourcesParams inverseSourcesParams) {
