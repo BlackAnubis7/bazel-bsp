@@ -11,7 +11,12 @@ import org.jetbrains.bsp.bazel.info.BspTargetInfo.TargetInfo
 import org.jetbrains.bsp.bazel.server.sync.dependencytree.DependencyTree
 import org.jetbrains.bsp.bazel.server.sync.languages.LanguagePlugin
 import org.jetbrains.bsp.bazel.server.sync.languages.LanguagePluginsService
-import org.jetbrains.bsp.bazel.server.sync.model.*
+import org.jetbrains.bsp.bazel.server.sync.model.Label
+import org.jetbrains.bsp.bazel.server.sync.model.Language
+import org.jetbrains.bsp.bazel.server.sync.model.Module
+import org.jetbrains.bsp.bazel.server.sync.model.Project
+import org.jetbrains.bsp.bazel.server.sync.model.SourceSet
+import org.jetbrains.bsp.bazel.server.sync.model.Tag
 import org.jetbrains.bsp.bazel.workspacecontext.WorkspaceContext
 import java.net.URI
 
@@ -68,6 +73,7 @@ class BazelProjectMapper(
         val languagePlugin = languagePluginsService.getPlugin(languages)
         val sourceSet = resolveSourceSet(target, languagePlugin)
         val resources = resolveResources(target)
+        val outputs = resolveOutputs(target)
         val languageData = languagePlugin.resolveModule(target)
         val sourceDependencies = languagePlugin.dependencySources(target, dependencyTree)
         val environment = environmentItem(target)
@@ -80,6 +86,7 @@ class BazelProjectMapper(
             baseDirectory = baseDirectory,
             sourceSet = sourceSet,
             resources = resources,
+            outputs = outputs,
             sourceDependencies = sourceDependencies,
             languageData = languageData,
             environmentVariables = environment
@@ -117,6 +124,15 @@ class BazelProjectMapper(
 
     private fun resolveResources(target: TargetInfo): Set<URI> =
         bazelPathsResolver.resolveUris(target.resourcesList).toSet()
+
+    private fun resolveOutputs(target: TargetInfo): Set<URI> {
+        val javaTargetInfo = target.takeIf(TargetInfo::hasJavaTargetInfo)?.javaTargetInfo
+        val javaOutputs = javaTargetInfo?.jarsList?.flatMap {
+            it.interfaceJarsList + it.binaryJarsList
+        } ?: emptyList()
+
+        return bazelPathsResolver.resolveUris(javaOutputs).toSet()
+    }
 
     // TODO make this feature configurable with flag in project view file
     private fun createSyntheticModules(
